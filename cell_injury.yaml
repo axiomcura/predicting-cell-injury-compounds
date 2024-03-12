@@ -1,0 +1,11 @@
+name: cell-injury
+channels:
+  - conda-forge
+  - defaults
+dependencies:
+  - python=3.12
+  - pandas
+  - numpy
+  - pre-commit
+  - ipykernel
+  - requests
