@@ -3,9 +3,10 @@ channels:
   - conda-forge
   - defaults
 dependencies:
-  - python=3.12
+  - python=3.11
   - pandas
   - numpy
   - pre-commit
   - ipykernel
   - requests
+  - conda-forge::pycytominer==1.1.0
