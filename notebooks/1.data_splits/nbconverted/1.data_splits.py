@@ -4,15 +4,20 @@
 # # Spliting Data
 # Here, we utilize the feature-selected profiles generated in the preceding module notebook [here](../0.freature_selection/), focusing on dividing the data into training, testing, and holdout sets for machine learning training.
 
-# In[1]:
+# In[24]:
 
 
 import json
 import pathlib
+import sys
 import warnings
 
 import numpy as np
 import pandas as pd
+from sklearn.model_selection import train_test_split
+
+sys.path.append("../../")  # noqa
+from src.utils import split_meta_and_features  # noqa
 
 # ignoring warnings
 warnings.catch_warnings(action="ignore")
@@ -28,6 +33,7 @@ warnings.catch_warnings(action="ignore")
 # setting seed constants
 seed = 0
 np.random.seed(seed)
+compartments = ["Cells", "Cytoplasm", "Nuclei"]
 
 # directory to get all the inputs for this notebook
 data_dir = pathlib.Path("../../data").resolve(strict=True)
@@ -47,6 +53,9 @@ fs_profile_path = (fs_dir / "cell_injury_profile_fs.csv.gz").resolve(strict=True
 
 # load data
 fs_profile_df = pd.read_csv(fs_profile_path)
+
+# splitting meta and feature column names
+fs_meta, fs_feats = split_meta_and_features(fs_profile_df, compartments=compartments)
 
 # display
 print("fs profile with control: ", fs_profile_df.shape)
@@ -449,24 +458,58 @@ print("training shape after removing holdouts", fs_profile_df.shape)
 fs_profile_df.head()
 
 
-# In[18]:
+# In[29]:
 
 
-# saving profile
-fs_profile_df.to_csv(
-    data_split_dir / "training_data.csv.gz", index=False, compression="gzip"
+# split the data into trianing and testing sets
+meta_cols, feat_cols = split_meta_and_features(fs_profile_df)
+X = fs_profile_df[feat_cols]
+y = fs_profile_df["injury_code"]
+
+# spliting dataset
+X_train, X_test, y_train, y_test = train_test_split(
+    X, y, train_size=0.80, random_state=seed, stratify=y
 )
 
+# saving training dataset as csv file
+X_train.to_csv(data_split_dir / "X_train.csv.gz", compression="gzip", index=False)
+X_test.to_csv(data_split_dir / "X_test.csv.gz", compression="gzip", index=False)
+y_train.to_csv(data_split_dir / "y_train.csv.gz", compression="gzip", index=False)
+y_test.to_csv(data_split_dir / "y_test.csv.gz", compression="gzip", index=False)
 
-# In[19]:
+# display data split sizes
+print("X training size", X_train.shape)
+print("X testing size", X_test.shape)
+print("y training size", y_train.shape)
+print("y testing size", y_test.shape)
+
+
+# In[21]:
 
 
 # saving feature names
+meta_colnames, feat_colnames = split_meta_and_features(
+    fs_profile_df, compartments=compartments
+)
 all_feature_col_names = {
-    "meta_cols": fs_profile_df.columns[:33].tolist(),
-    "feature_cols": fs_profile_df.columns[33:].tolist(),
+    "meta_cols": meta_colnames,
+    "feature_cols": feat_colnames,
 }
 
 # save as a json file
 with open(data_split_dir / "feature_cols.json", mode="w") as f:
     json.dump(all_feature_col_names, f)
+
+
+# In[22]:
+
+
+# save metadata after holdout
+cell_injury_metadata = fs_profile_df[fs_meta]
+cell_injury_metadata.to_csv(
+    data_split_dir / "cell_injury_metadata_after_holdout.csv.gz", compression="gzip"
+)
+
+# display
+print("Metadata shape", cell_injury_metadata.shape)
+cell_injury_metadata.head()
