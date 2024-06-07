@@ -135,43 +135,52 @@ def drop_na_samples(
     return profile
 
 
-def shuffle_features(feature_vals: np.array, seed: Optional[int] = 0) -> np.array:
-    """Shuffles all values within feature space
+def shuffle_features(
+    profile: pd.DataFrame, features: list[str], seed: Optional[int] = 0
+) -> pd.DataFrame:
+    """Shuffles the feature space of the given profile. The shuffling process is done by independently
+    taking each feature, shuffling the values within the feature space, and updating the provided profile.
+    As a result, a DataFrame with a shuffled feature space is returned.
 
     Parameters
     ----------
-    feature_vals : np.array
-        Values to be shuffled.
+    profile : pd.DataFrame
+        DataFrame to be shuffled.
+
+    features : list[str]
+        List of features to select for shuffling
 
     seed : Optional[int]
         setting random seed
 
     Returns
     -------
-    np.array
-        Returns shuffled values within the feature space
+    pd.DataFrame
+        Returns shuffled values within the selected feature space
 
     Raises
     ------
     TypeError
-        Raised if a numpy array is not provided
+        Raised if a pandas DataFrame is not provded
+        Raised if a non-int value is provided for 'seed'
     """
-    # setting seed
-    np.random.seed(seed)
 
     # shuffle given array
-    if not isinstance(feature_vals, np.ndarray):
-        raise TypeError("'feature_vals' must be a numpy array")
-    if feature_vals.ndim != 2:
-        raise TypeError("'feature_vals' must be a 2x2 matrix")
+    if not isinstance(profile, pd.DataFrame):
+        raise TypeError("'feature_vals' must be a pandas DataFrame")
+    if not isinstance(seed, int):
+        raise TypeError("'seed' must be an int")
 
-    # shuffling feature space
-    n_cols = feature_vals.shape[1]
-    for col_idx in range(0, n_cols):
-        # selecting column, shuffle, and update:
-        feature_vals[:, col_idx] = np.random.permutation(feature_vals[:, col_idx])
+    # make a copy of the DataFrame to prevent over writing the original DataFrame
+    profile = profile.copy(deep=True)[features]
 
-    return feature_vals
+    # how shuffle everything per row
+    for col in profile.columns:
+        profile[col] = (
+            profile[col].sample(frac=1, random_state=seed).reset_index(drop=True)
+        )
+
+    return profile
 
 
 def train_multiclass(
@@ -339,14 +348,10 @@ def calculate_multi_class_f1score(
 
     # calculate f1 score per injust and weighted scores across all injuries
     scores = f1_score(y, y_pred, average=None, labels=injury_labels, zero_division=0)
-    # weighted_score = f1_score(
-    #     y, y_pred, average="weighted", labels=injury_labels, zero_division=0
-    # )
 
     # add scores into a data frame
     scores = pd.DataFrame(scores).transpose()
     scores.columns = injury_types
-    # scores["weighted"] = weighted_score
     scores = scores.transpose().reset_index()
     scores.columns = ["injury_type", "f1_score"]
 
@@ -566,3 +571,43 @@ def evaluate_model_performance(
             model=model, X=X, y=y, shuffled=shuffled, dataset_type=dataset_type
         ),
     )
+
+
+# this needs to be a function
+def get_injury_treatment_info(profile: pd.DataFrame, groupby_key: str):
+    # checking
+    if not isinstance(profile, pd.DataFrame):
+        raise TypeError("'profile' must be a pandas data frame object")
+    if not isinstance(groupby_key, str):
+        raise TypeError("'groupby_key' ust be a string")
+    if groupby_key not in profile.columns.tolist():
+        raise ValueError("'grouby_key' column does not in data frame column")
+
+    # Showing the amount of data we have after removing the holdout data
+    meta_injury = []
+    for injury_type, df in profile.groupby("injury_type"):
+        # extract n_wells, n_compounds and unique compounds per injury_type
+        n_wells = df.shape[0]
+        injury_code = df["injury_code"].unique()[0]
+        unique_compounds = list(df["Compound Name"].unique())
+        n_compounds = len(unique_compounds)
+
+        # store information
+        meta_injury.append(
+            [injury_type, injury_code, n_wells, n_compounds, unique_compounds]
+        )
+
+    # creating data frame
+    injury_meta_df = pd.DataFrame(
+        meta_injury,
+        columns=[
+            "injury_type",
+            "injury_code",
+            "n_wells",
+            "n_compounds",
+            "compound_list",
+        ],
+    ).sort_values("n_wells", ascending=False)
+
+    # display
+    return injury_meta_df

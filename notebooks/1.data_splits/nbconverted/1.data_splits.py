@@ -2,7 +2,9 @@
 # coding: utf-8
 
 # # Spliting Data
+#
 # Here, we utilize the feature-selected profiles generated in the preceding module notebook [here](../0.feature_selection/0.feature_selection.ipynb), focusing on dividing the data into training, testing, and holdout sets for machine learning training.
+#
 
 # In[1]:
 
@@ -17,7 +19,7 @@ import pandas as pd
 from sklearn.model_selection import train_test_split
 
 sys.path.append("../../")  # noqa
-from src.utils import split_meta_and_features  # noqa
+from src.utils import get_injury_treatment_info, split_meta_and_features  # noqa
 
 # ignoring warnings
 warnings.catch_warnings(action="ignore")
@@ -26,6 +28,7 @@ warnings.catch_warnings(action="ignore")
 # ## Paramters
 #
 # Below are the parameters defined that are used in this notebook
+#
 
 # In[2]:
 
@@ -63,9 +66,11 @@ fs_profile_df.head()
 
 # ## Exploring the data set
 #
-# Below is a  exploration of the selected features dataset. The aim is to identify treatments, extract metadata, and gain a understanding of the experiment's design.
+# Below is a exploration of the selected features dataset. The aim is to identify treatments, extract metadata, and gain a understanding of the experiment's design.
+#
 
 # Below demonstrates the amount of wells does each treatment have.
+#
 
 # In[4]:
 
@@ -79,6 +84,7 @@ well_treatments_counts_df
 
 
 # Below we show the amount of wells does a specific cell celluar injury has
+#
 
 # In[5]:
 
@@ -93,33 +99,25 @@ cell_injury_well_counts
 # Next we wanted to extract some metadata regarding how many compound and wells are treated with a given compounds
 #
 # This will be saved in the `results/0.data_splits` directory
+#
 
 # In[6]:
 
 
-meta_injury = []
-for injury_type, df in fs_profile_df.groupby("injury_type"):
-    # extract n_wells, n_compounds and unique compounds per injury_type
-    n_wells = df.shape[0]
-    unique_compounds = list(df["Compound Name"].unique())
-    n_compounds = len(unique_compounds)
-
-    # store information
-    meta_injury.append([injury_type, n_wells, n_compounds, unique_compounds])
-
-injury_meta_df = pd.DataFrame(
-    meta_injury, columns=["injury_type", "n_wells", "n_compounds", "compound_list"]
-).sort_values("n_wells", ascending=False)
-injury_meta_df.to_csv(data_split_dir / "injury_well_counts_table.csv", index=False)
+# get summary information and save it
+injury_before_holdout_info_df = get_injury_treatment_info(
+    profile=fs_profile_df, groupby_key="injury_type"
+).reset_index(drop=True)
 
 # display
-print("shape:", injury_meta_df.shape)
-injury_meta_df
+print("Shape:", injury_before_holdout_info_df.shape)
+injury_before_holdout_info_df
 
 
 # Next, we construct the profile metadata. This provides a structured overview of how the treatments assicoated with injuries were applied, detailing the treatments administered to each plate.
 #
 # This will be saved in the `results/0.data_splits` directory
+#
 
 # In[7]:
 
@@ -154,6 +152,7 @@ with open(data_split_dir / "injury_metadata.json", mode="w") as stream:
 # Here we build a plate metadata infromations where we look at the type of treatments and amount of wells with the treatment that are present in the dataset
 #
 # This will be saved in `results/0.data_splits`
+#
 
 # In[8]:
 
@@ -177,16 +176,19 @@ with open(data_split_dir / "cell_injury_plate_info.json", mode="w") as stream:
 
 
 # ## Data Splitting
+#
 # ---
+#
 
 # ### Holdout Dataset
 #
 # Here we collected out holdout dataset. The holdout dataset is a subset of the dataset that is not used during model training or tuning. Instead, it is reserved solely for evaluating the model's performance after it has been trained.
 #
 # In this notebook, we will include three different types of held-out datasets before proceeding with our machine learning training and evaluation.
-#  - Plate hold out
-#  - treatment hold out
-#  - well hold out
+#
+# - Plate hold out
+# - treatment hold out
+# - well hold out
 #
 # Each of these held outdata will be stored in the `results/1.data_splits` directory
 #
@@ -194,6 +196,7 @@ with open(data_split_dir / "cell_injury_plate_info.json", mode="w") as stream:
 # ### Plate Holdout
 #
 # Plates are randomly selected based on their Plate ID and save them as our `plate_holdout` data.
+#
 
 # In[9]:
 
@@ -241,6 +244,7 @@ plate_holdout_df.head()
 # To determine which cell injuries should be considered for a single treatment holdout, we establish a threshold of 10 unique compounds. This means that a cell injury type must have at least 10 unique compounds to qualify for selection in the treatment holdout. Any cell injury types failing to meet this criterion will be disregarded.
 #
 # Once the cell injuries are identified for treatment holdout, we select our holdout treatment by grouping each injury type and choosing the treatment with the fewest wells. This becomes our treatment holdout dataset.
+#
 
 # In[10]:
 
@@ -320,6 +324,7 @@ treatment_holdout_df.head()
 # ### Well holdout
 #
 # To generate the well hold out data, each plate was iterated and random wells were selected. However, an additional step was condcuting which was to seperate the control wells and the treated wells, due to the large label imbalance with the controls. Therefore, 5 wells were randomly selected and 10 wells were randomly selected from each individual plate
+#
 
 # In[13]:
 
@@ -374,34 +379,22 @@ wells_heldout_df.head()
 
 
 # ## Saving training dataset
+#
 
 # Once the data holdout has been generated, the next step is to save the training dataset that will serve as the basis for training the multi-class logistic regression model.
+#
 
 # In[14]:
 
 
-# Showing the amount of data we have after removing the holdout data
-meta_injury = []
-for injury_type, df in fs_profile_df.groupby("injury_type"):
-    # extract n_wells, n_compounds and unique compounds per injury_type
-    n_wells = df.shape[0]
-    injury_code = df["injury_code"].unique()[0]
-    unique_compounds = list(df["Compound Name"].unique())
-    n_compounds = len(unique_compounds)
-
-    # store information
-    meta_injury.append(
-        [injury_type, injury_code, n_wells, n_compounds, unique_compounds]
-    )
-
-# creating data frame
-injury_meta_df = pd.DataFrame(
-    meta_injury,
-    columns=["injury_type", "injury_code", "n_wells", "n_compounds", "compound_list"],
-).sort_values("n_wells", ascending=False)
+# get summary cell injury dataset treatment and well info after holdouts
+injury_after_holdout_info_df = get_injury_treatment_info(
+    profile=fs_profile_df, groupby_key="injury_type"
+)
 
 # display
-injury_meta_df
+print("shape:", injury_after_holdout_info_df.shape)
+injury_after_holdout_info_df
 
 
 # In[15]:
@@ -448,7 +441,120 @@ cell_injury_metadata.to_csv(
     compression="gzip",
     index=False,
 )
-
 # display
 print("Metadata shape", cell_injury_metadata.shape)
 cell_injury_metadata.head()
+
+
+# ## Generating data split summary file
+
+# In[18]:
+
+
+def get_and_rename_injury_info(
+    profile: pd.DataFrame, groupby_key: str, column_name: str
+) -> pd.DataFrame:
+    """Gets injury treatment information and renames the specified column.
+
+    Parameters
+    ----------
+    profile : DataFrame
+        The profile DataFrame containing data to be processed.
+    groupby_key : str
+        The key to group by in the injury treatment information.
+    column_name : str
+        The new name for the 'n_wells' column.
+
+    Returns
+    -------
+    DataFrame
+        A DataFrame with the injury treatment information and the 'n_wells' column renamed.
+    """
+    return get_injury_treatment_info(profile=profile, groupby_key=groupby_key).rename(
+        columns={"n_wells": column_name}
+    )
+
+
+# name of the columns
+data_col_name = [
+    "Number of Wells (Total Data)",
+    "Number of Wells (Train Split)",
+    "Number of Wells (Test Split)",
+    "Number of Wells (Plate Holdout)",
+    "Number of Wells (Treatment Holdout)",
+    "Number of Wells (Well Holdout)",
+]
+
+
+# Total amount summary
+injury_before_holdout_info_df = injury_before_holdout_info_df.rename(
+    columns={"n_wells": data_col_name[0]}
+)
+
+# Data splits train test summary
+injury_train_info_df = get_and_rename_injury_info(
+    profile=X_train.merge(
+        fs_profile_df[meta_cols], how="left", right_index=True, left_index=True
+    )[meta_cols + feat_cols],
+    groupby_key="injury_type",
+    column_name=data_col_name[1],
+)
+
+injury_test_info_df = get_and_rename_injury_info(
+    profile=X_test.merge(
+        fs_profile_df[meta_cols], how="left", right_index=True, left_index=True
+    )[meta_cols + feat_cols],
+    groupby_key="injury_type",
+    column_name=data_col_name[2],
+)
+
+# Holdouts summary
+injury_plate_holdout_info_df = get_and_rename_injury_info(
+    profile=plate_holdout_df, groupby_key="injury_type", column_name=data_col_name[3]
+)
+
+injury_treatment_holdout_info_df = get_and_rename_injury_info(
+    profile=treatment_holdout_df,
+    groupby_key="injury_type",
+    column_name=data_col_name[4],
+)
+
+injury_well_holdout_info_df = get_and_rename_injury_info(
+    profile=wells_heldout_df, groupby_key="injury_type", column_name=data_col_name[5]
+)
+
+# Select interested columns
+total_data_summary = injury_before_holdout_info_df[["injury_type", data_col_name[0]]]
+train_split_summary = injury_train_info_df[["injury_type", data_col_name[1]]]
+test_split_summary = injury_test_info_df[["injury_type", data_col_name[2]]]
+plate_holdout_info_df = injury_plate_holdout_info_df[["injury_type", data_col_name[3]]]
+treatment_holdout_summary = injury_treatment_holdout_info_df[
+    ["injury_type", data_col_name[4]]
+]
+well_holdout_summary = injury_well_holdout_info_df[["injury_type", data_col_name[5]]]
+
+
+# In[19]:
+
+
+# merge the summary data splits into one, update data type to integers
+merged_summary_df = (
+    total_data_summary.merge(train_split_summary, on="injury_type", how="outer")
+    .merge(test_split_summary, on="injury_type", how="outer")
+    .merge(plate_holdout_info_df, on="injury_type", how="outer")
+    .merge(treatment_holdout_summary, on="injury_type", how="outer")
+    .merge(well_holdout_summary, on="injury_type", how="outer")
+    .fillna(0)
+    .set_index("injury_type")
+)[data_col_name].astype(int)
+
+# update index and rename it 'injury_type' to "Cellular Injury"
+merged_summary_df = merged_summary_df.reset_index().rename(
+    columns={"injury_type": "Cellular Injury"}
+)
+
+# save as csv file
+merged_summary_df.to_csv(data_split_dir / "summary_data_split.csv", index=False)
+
+# display
+merged_summary_df

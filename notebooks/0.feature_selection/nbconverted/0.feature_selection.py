@@ -55,6 +55,8 @@ compounds_df = meta_df[["Compound Name", "Compound Class"]]
 suppl_meta_df = pd.read_csv(suppl_meta_path)
 cell_injury_df = suppl_meta_df[["Cellular injury category", "Compound alias"]]
 
+print("Cell injury screen shape:", image_profile_df.shape)
+
 
 # ## Labeling Cell Injury data
 
@@ -209,7 +211,7 @@ fs_injury_df.to_csv(
 
 # Save feature space information while maintaining feature space order
 
-# In[ ]:
+# In[8]:
 
 
 # split meta and feature column names
