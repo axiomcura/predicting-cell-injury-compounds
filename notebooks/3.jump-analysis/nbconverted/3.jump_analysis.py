@@ -41,7 +41,7 @@ modeling_dir = pathlib.Path("../../results/2.modeling").resolve(strict=True)
 jump_data_path = (jump_data_dir / "JUMP_all_plates_normalized_negcon.csv.gz").resolve(
     strict=True
 )
-
+barcode_path = (jump_data_dir / "barcode_platemap.csv").resolve(strict=True)
 # loading only cell injury metadata (after holdout has been applied)
 cell_injury_metadata_path = (
     data_split_dir / "cell_injury_metadata_after_holdout.csv.gz"
@@ -78,6 +78,9 @@ jump_analysis_dir.mkdir(exist_ok=True)
 # loading in JUMP dataset
 jump_df = pd.read_csv(jump_data_path)
 
+# loading JUMP barcode
+barcode_df = pd.read_csv(barcode_path)
+
 # loading in cell injury metadata only (after holdout)
 cell_injury_meta_df = pd.read_csv(cell_injury_metadata_path)
 
@@ -92,6 +95,13 @@ injury_decoder = injury_codes["decoder"]
 # loading in shared feature space
 shared_feature_space = load_json_file(shared_feature_space_path)
 shared_features = shared_feature_space["features"]
+
+# Experimental metadata
+jump_exp_meta = pd.read_csv(
+    "https://raw.githubusercontent.com/WayScience/JUMP-single-cell/d00868cfdb18143db0469e3cc0700b35c03cf811/reference_plate_data/experiment-metadata.tsv",
+    delimiter="\t",
+)
+
 
 # Display data
 print("JUMP dataset shape", jump_df.shape)
@@ -423,28 +433,92 @@ pd.concat([jump_overlap_cm, shuffled_jump_overlap_cm]).to_csv(
 # In[19]:
 
 
+# setting column arrangement
+col_arrangement = [
+    "Metadata_Plate",
+    "Plate_Map_Name",
+    "Metadata_Well",
+    "Cell_type",
+    "Metadata_pert_type",
+    "Time",
+    "Metadata_gene",
+    "Metadata_pert_iname",
+    "Metadata_target_sequence",
+    "pred_injury",
+    "probability",
+]
+
+# creating a rename dict
+rename_assay_type = {
+    "JUMP-Target-1_orf_platemap": "orf",
+    "JUMP-Target-1_compound_platemap": "compound",
+    "JUMP-Target-1_crispr_platemap": "crispr",
+}
+
 # split meta and feature columns
 shared_jump_meta, shared_jump_feats = split_meta_and_features(shared_jump_df)
 
 # selecting the columns
-jump_meta = shared_jump_df[["Metadata_Plate", "Metadata_Well", "Metadata_pert_iname"]]
+predicted_df = shared_jump_df[
+    [
+        "Metadata_Plate",
+        "Metadata_Well",
+        "Metadata_gene",
+        "Metadata_pert_iname",
+        "Metadata_target_sequence",
+        "Metadata_pert_type",
+    ]
+]
 
 # converting injury codes to injury names
-jump_meta["pred_injury"] = [
+predicted_df["pred_injury"] = [
     injury_decoder[str(injury_code)] for injury_code in y_pred.tolist()
 ]
 
 # obtaining the probability score of the predicted injury
-jump_meta["probability"] = y_proba.max(axis=1).tolist()
+predicted_df["probability"] = y_proba.max(axis=1).tolist()
+
+# add experimental metadata
+sel_jump_exp_meta = jump_exp_meta[["Assay_Plate_Barcode", "Cell_type", "Time"]]
+predicted_df = predicted_df.merge(
+    sel_jump_exp_meta, left_on="Metadata_Plate", right_on="Assay_Plate_Barcode"
+).drop(columns=["Assay_Plate_Barcode"])
+
+# Merge barcode information by using the Plate ID to indicate the type of assay conducted
+predicted_df = pd.merge(
+    predicted_df, barcode_df, left_on="Metadata_Plate", right_on="Assay_Plate_Barcode"
+)
+predicted_df = predicted_df.drop("Assay_Plate_Barcode", axis=1)
+predicted_df = predicted_df[col_arrangement].rename(
+    columns={"Plate_Map_Name": "Assay_type"}
+)
+
+
+# updating column containign assay information
+predicted_df["Assay_type"] = predicted_df["Assay_type"].apply(
+    lambda assay_code: rename_assay_type[assay_code]
+)
+
+# if 'Metadata_pert_type' is NaN this means that no sample was added
+# rational behind this is because the "Metadata_broad_sample" is empty indicating no sample was added
+predicted_df["Metadata_pert_type"] = predicted_df["Metadata_pert_type"].fillna("EMPTY")
+
+# update 'trt' value to "treatment" to improve readability
+predicted_df["Metadata_pert_type"] = predicted_df["Metadata_pert_type"].apply(
+    lambda name: "treatment" if name == "trt" else name
+)
+
+# dropping duplicates
+predicted_df = predicted_df.drop_duplicates()
+
+# display
+print(predicted_df.shape)
+predicted_df.head()
 
 
 # In[20]:
 
 
-# save supplemental table
-jump_meta.to_csv(
-    jump_analysis_dir / "stable2_predicted_jump_injury_table.csv.gz",
-    compression="gzip",
-    index=False,
+predicted_df.to_csv(
+    jump_analysis_dir / "JUMP_CP_Pilot_predicted_injuries.csv", index=False
 )
-jump_meta
