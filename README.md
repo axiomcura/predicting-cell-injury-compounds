@@ -1,4 +1,5 @@
 # Predicting cellular injury using Pyctominer
+
 [![DOI](https://zenodo.org/badge/744169074.svg)](https://zenodo.org/doi/10.5281/zenodo.12514972)
 
 ![workflow](./notebooks/4.visualization/figures/workflow_fig.png)
@@ -43,6 +44,37 @@ Below are all the notebook modules used in our study.
 | [2.modeling](./notebooks/2.modeling/) | Trains and evaluates a multi-class logistic regression model |
 | [3.jump_analysis](./notebooks/3.jump_analysis/) | Applies our model to the JUMP dataset to predict cellular injuries |
 | [4.visualizations](./notebooks/4.visualizations/) | Contains a notebook responsible for generating our figures |
+
+## Installing respoitory and dependencies
+
+This installation guide assumes that you have Conda installed.
+If you do not have Conda installed, please follow the documentation [here](https://conda.io/projects/conda/en/latest/user-guide/install/index.html).
+
+1. **Clone the repository**: Clone the repository into your local machine and change the directory to the repo.
+
+    ```bash
+    git clone git@github.com:WayScience/Cytotoxic-Nuisance-Metadata-Analysis.git && cd Cytotoxic-Nuisance-Metadata-Analysis
+    ```
+
+2. **Install dependencies**: There are two environment files in this repository.
+One is in the root project folder, containing all the necessary packages to conduct our analysis in Python.
+The other is within the `./notebooks/4.visualization` directory, which includes packages for generating plots with R.
+
+    - **Analysis environment**: Create and activate the environment for analysis.
+
+        ```bash
+        conda env create -f cell_injury.yaml
+        conda activate cell-injury
+        ```
+
+    - **R visualization environment**: Create and activate the environment for R visualization.
+
+        ```bash
+        conda env create -f ./notebooks/4.visualization/visualization_env.yaml
+        conda activate visualization-env
+        ```
+
+That's it! Your Conda environments should now be set up with the specified packages from the YAML files.
 
 ## Analysis summary
 
