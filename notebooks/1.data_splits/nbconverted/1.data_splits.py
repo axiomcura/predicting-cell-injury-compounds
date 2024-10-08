@@ -89,9 +89,9 @@ aligned_fs_feature_space_path = (
 ).resolve(strict=True)
 
 # data paths
-raw_cell_injury_path = (
-    JUMP_data_dir / "labeled_JUMP_all_plates_normalized_negcon.csv.gz"
-).resolve(strict=True)
+raw_cell_injury_path = (data_dir / "labeled_cell_injury_profile.csv.gz").resolve(
+    strict=True
+)
 fs_profile_path = (fs_dir / "fs_cell_injury_only.csv.gz").resolve(strict=True)
 aligned_fs_profile_path = (fs_dir / "aligned_cell_injury_profile_fs.csv.gz").resolve(
     strict=True
@@ -576,8 +576,8 @@ print("aligned y testing size", aligned_y_test.shape)
 # fs_features = feature from the only feature selected cell injury profile
 fs_X_train = raw_cell_injury_profile_df.iloc[aligned_X_train.index][fs_features]
 fs_X_test = raw_cell_injury_profile_df.iloc[aligned_X_test.index][fs_features]
-fs_y_train = raw_cell_injury_profile_df.iloc[aligned_y_train.index][fs_features]
-fs_y_test = raw_cell_injury_profile_df.iloc[aligned_y_test.index][fs_features]
+fs_y_train = raw_cell_injury_profile_df.iloc[aligned_y_train.index]["injury_code"]
+fs_y_test = raw_cell_injury_profile_df.iloc[aligned_y_test.index]["injury_code"]
 
 # now saving the data
 # saving training dataset as csv file
