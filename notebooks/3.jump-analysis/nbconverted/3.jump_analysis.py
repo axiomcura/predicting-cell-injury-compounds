@@ -273,8 +273,15 @@ gt_jump_cyto_injury_df = shared_jump_df.loc[
     shared_jump_df["Metadata_InChIKey"] == "IAKHMKGGTNLKSZ-INIZCTEOSA-N"
 ]
 
+gt_dmso_df = shared_jump_df.loc[
+    shared_jump_df["Metadata_InChIKey"] == "IAZDPXIOMUYVGZ-UHFFFAOYSA-N"
+]
+
 # updating the shared_jump_df by removing the ground truth entries
+# removing the cytoskeletal ground truth from JUMP data
 shared_jump_df = shared_jump_df.drop(index=gt_jump_cyto_injury_df.index, inplace=False)
+# removing DMSO ground truth from JUMP data
+shared_jump_df = shared_jump_df.drop(index=gt_dmso_df.index, inplace=False)
 
 
 # Finally we save the shared_treaments_df as a csv.gz file.
@@ -311,6 +318,8 @@ aligned_meta_cols, aligned_feature_cols = split_meta_and_features(shared_jump_df
 gt_df = gt_jump_cyto_injury_df[gt_metadata_cols + aligned_feature_cols]
 gt_X = gt_jump_cyto_injury_df[aligned_feature_cols]
 
+gt_dmso_control_df = gt_dmso_df[gt_metadata_cols + aligned_feature_cols]
+gt_dmso_X = gt_dmso_df[aligned_feature_cols]
 
 # other JUMP wells feature space (not labeled)
 X = shared_jump_df[aligned_feature_cols]
@@ -342,15 +351,19 @@ injury_classes = [injury_decoder[str(code)] for code in model.classes_.tolist()]
 # prediction probabilities on both non-shuffled and shuffled models
 y_pred = model.predict(X)
 gt_y_pred = model.predict(gt_X)
+gt_y_dmso_pred = model.predict(gt_dmso_X)
 
 y_proba = model.predict_proba(X)
 gt_y_proba = model.predict_proba(gt_X)
+gt_y_dmso_proba = model.predict_proba(gt_dmso_X)
 
 shuffled_y_pred = shuffled_model.predict(X)
 shuffled_gt_y_pred = shuffled_model.predict(gt_X)
+shuffled_gt_y_dmso_pred = shuffled_model.predict(gt_dmso_X)
 
 shuffled_y_proba = shuffled_model.predict_proba(X)
 shuffled_gt_y_proba = shuffled_model.predict_proba(gt_X)
+shuffled_gt_y_dmso_proba = shuffled_model.predict_proba(gt_dmso_X)
 
 # convert to pandas dataframe add prediction col
 y_proba_df = pd.DataFrame(y_proba)
@@ -362,7 +375,12 @@ gt_y_proba_df = pd.DataFrame(gt_y_proba)
 gt_y_proba_df["pred_injury"] = gt_y_pred.flatten()
 gt_y_proba_df["datatype"] = "JUMP Overlap"
 gt_y_proba_df["shuffled_model"] = False
-# gt_y_proba_df = pd.concat([gt_df[gt_metadata_cols], gt_y_proba_df], axis=1)
+
+gt_y_dmso_proba_df = pd.DataFrame(gt_y_dmso_proba)
+gt_y_dmso_proba_df["pred_injury"] = gt_y_dmso_pred.flatten()
+gt_y_dmso_proba_df["datatype"] = "JUMP Overlap"
+gt_y_dmso_proba_df["shuffled_model"] = False
+
 
 shuffled_y_proba_df = pd.DataFrame(shuffled_y_proba)
 shuffled_y_proba_df["pred_injury"] = shuffled_y_pred.flatten()
@@ -373,12 +391,23 @@ shuffled_gt_y_proba_df = pd.DataFrame(shuffled_gt_y_proba)
 shuffled_gt_y_proba_df["pred_injury"] = shuffled_gt_y_pred.flatten()
 shuffled_gt_y_proba_df["datatype"] = "JUMP Overlap"
 shuffled_gt_y_proba_df["shuffled_model"] = True
-# shuffled_gt_y_proba_df = pd.concat([gt_df[gt_metadata_cols], shuffled_gt_y_proba_df], axis=1)
+
+shuffled_gt_y_dmso_proba_df = pd.DataFrame(shuffled_gt_y_dmso_proba)
+shuffled_gt_y_dmso_proba_df["pred_injury"] = shuffled_gt_y_dmso_pred.flatten()
+shuffled_gt_y_dmso_proba_df["datatype"] = "JUMP Overlap"
+shuffled_gt_y_dmso_proba_df["shuffled_model"] = True
 
 # concatenate all prediction
 # update the predicted label columns to injury name
 all_proba_scores = pd.concat(
-    [y_proba_df, gt_y_proba_df, shuffled_y_proba_df, shuffled_gt_y_proba_df]
+    [
+        y_proba_df,
+        gt_y_proba_df,
+        gt_y_dmso_proba_df,
+        shuffled_y_proba_df,
+        shuffled_gt_y_proba_df,
+        shuffled_gt_y_dmso_proba_df,
+    ]
 )
 all_proba_scores.columns = [
     injury_decoder[str(col_name)] for col_name in all_proba_scores.columns[0:15]
@@ -459,9 +488,27 @@ cytoskeletal_proba_scores.to_csv(
 cytoskeletal_proba_scores.head()
 
 
+# In[16]:
+
+
+# next only select DMSO probability scores
+dmso_proba_scores = all_proba_scores[col_to_sel + ["Control"]]
+dmso_proba_scores = dmso_proba_scores.rename(columns={"Control": "Control_proba"})
+
+# Saving only DMSO probability scores
+dmso_proba_scores.to_csv(
+    jump_analysis_dir / "JUMP_dmso_proba_scores.csv.gz",
+    compression="gzip",
+    index=False,
+)
+
+# display
+dmso_proba_scores.head()
+
+
 # Next, we will obtain all probability scores for JUMP wells predicted to have any injury (excluding ground truth data).
 
-# In[16]:
+# In[17]:
 
 
 # making all probabilities tidy long
@@ -480,7 +527,7 @@ all_injury_proba.head()
 
 # ## Generating Confusion Matrix
 
-# In[17]:
+# In[18]:
 
 
 shared_treat_meta, shared_treat_feats = split_meta_and_features(shared_treat_jump_df)
@@ -488,7 +535,7 @@ shared_X = shared_treat_jump_df[shared_treat_feats]
 shared_y = shared_treat_jump_df["injury_code"]
 
 
-# In[18]:
+# In[19]:
 
 
 jump_overlap_cm = generate_confusion_matrix_tl(
@@ -499,7 +546,7 @@ shuffled_jump_overlap_cm = generate_confusion_matrix_tl(
 ).fillna(0)
 
 
-# In[19]:
+# In[20]:
 
 
 # save confusion matrix
@@ -514,7 +561,7 @@ pd.concat([jump_overlap_cm, shuffled_jump_overlap_cm]).to_csv(
 
 # Below we are creating a supplemental table showing the types of injury predicted associated with the compounds found in the JUMP-CP datat set
 
-# In[20]:
+# In[21]:
 
 
 # setting column arrangement
@@ -600,7 +647,7 @@ print(predicted_df.shape)
 predicted_df.head()
 
 
-# In[21]:
+# In[22]:
 
 
 predicted_df.to_csv(
