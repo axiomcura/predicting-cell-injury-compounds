@@ -113,7 +113,6 @@ cyto_proba_df <- cyto_proba_df %>%
 cyto_proba_df <- cyto_proba_df %>%
   mutate(injury = ifelse(datatype == "JUMP Overlap", "Cyto JUMP Overlap", injury))
 
-
 # Update injury proba columns
 all_injury_proba_df <- all_injury_proba_df %>%
   mutate(shuffled = replace(shuffled, shuffled == "False", "Not shuffled"),
@@ -156,11 +155,20 @@ f1_scores_per_injury_df <- f1_scores_per_injury_df %>%
   rename(test_f1_score = f1_score) %>%
   select(-dataset_type)
 
+f1_scores_per_injury_df
 
 # These values manually move the F1 score box within each subplot.
 # The position of these values corresponds to the row of the table below.
+ordered_injury_types <- paste(unique(f1_scores_per_injury_df$injury_type[order(tolower(f1_scores_per_injury_df$injury_type))]))
 x_values <- c(0.50, 0.50, 0.35, 0.30, 0.50, 0.50, 0.40, 0.70, 0.40, 0.40, 0.75, 0.35, 0.74, 0.74, 0.74)
 y_values <- c(0.25, 0.50, 0.50, 0.50, 0.50, 0.50, 0.50, 0.80, 0.50, 0.50, 0.90, 0.50, 0.90, 0.90, 0.90)
+
+facet_xy_labels_per_injury_type <- data.frame(
+  cbind(ordered_injury_types, x_values, y_values)
+)
+
+facet_xy_labels_per_injury_type$x_values <- as.numeric(facet_xy_labels_per_injury_type$x_values)
+facet_xy_labels_per_injury_type$y_values <- as.numeric(facet_xy_labels_per_injury_type$y_values)
 
 # generate dataframe responsible for placing the f1 boxes within the plot
 f1_scores_per_injury_df <- f1_scores_per_injury_df %>%
@@ -168,13 +176,20 @@ f1_scores_per_injury_df <- f1_scores_per_injury_df %>%
     f1_label = paste0(
       "F1 Train:", sprintf("%.2f", train_f1_score), "\n",
       "F1 Test:", sprintf("%.2f", test_f1_score)
-    ),
-    x = x_values,
-    y = y_values
+    )
+  ) %>%
+  left_join(
+    facet_xy_labels_per_injury_type,
+    by = c("injury_type" = "ordered_injury_types")
+  )
+
+# Make sure labels are alphabetically ordered
+f1_scores_per_injury_df$injury_type <- factor(
+  f1_scores_per_injury_df$injury_type,
+  levels = ordered_injury_types
   )
 
 f1_scores_per_injury_df
-
 
 # plot data
 width <- 12
@@ -184,6 +199,12 @@ options(repr.plot.width = width, repr.plot.height = height)
 # Updating label names
 pr_f1_curve <- pr_f1_curve %>%
   mutate(shuffled = ifelse(shuffled == "Not Shuffled", "Not shuffled", shuffled))
+
+# Make sure labels are alphabetically ordered
+pr_f1_curve$injury_type <- factor(
+  pr_f1_curve$injury_type,
+  levels = ordered_injury_types
+  )
 
 # # original
 fig2_B_pr_curve_plot_train_test <- ggplot(pr_f1_curve, aes(x = recall, y = precision)) +
@@ -209,12 +230,12 @@ fig2_B_pr_curve_plot_train_test <- ggplot(pr_f1_curve, aes(x = recall, y = preci
   # adding labels within the facet
   geom_point(
     data = f1_scores_per_injury_df,
-    aes(x = x, y = y),
+    aes(x = x_values, y = y_values),
     shape = 32,
   ) +
   geom_text(
     data = f1_scores_per_injury_df,
-    aes(x = x, y = y, label = f1_label),
+    aes(x = x_values, y = y_values, label = f1_label),
     hjust = 0.5, # Center horizontally
     vjust = 0.5, # Adjust vertically for position
     size = 6.3, # Increase font size
@@ -367,7 +388,10 @@ sfig3_model_cm <- (
 )
 
 # saving file
-ggsave(filename = "figures/supplemental/sfig3_shuffled_confusion_matrix.png", height = height, width = width, dpi = 600)
+for (fig_extension in c(".png", ".jpg")) {
+  figure_name_with_extension <- paste0("figures/supplemental/sfig3_shuffled_confusion_matrix", fig_extension)
+  ggsave(filename = figure_name_with_extension, height = height, width = width, dpi = 600)
+}
 
 sfig3_model_cm
 
@@ -440,7 +464,10 @@ sfig4_treatment_holdout_cm <- (
     )
 
 # saving file
-ggsave(filename = "figures/supplemental/sfig4_treatment_holdout_confusion_matrix.png", height = 9, width = 14, dpi = 600)
+for (fig_extension in c(".png", ".jpg")) {
+  figure_name_with_extension <- paste0("figures/supplemental/sfig4_treatment_holdout_confusion_matrix", fig_extension)
+  ggsave(filename = figure_name_with_extension, height = 9, width = 14, dpi = 600)
+}
 
 sfig4_treatment_holdout_cm
 
@@ -627,13 +654,17 @@ all_injury_probas_ridge_plot <- wrap_plots(ridge_plots_list[1:14], ncol = 3)
 all_injury_probas_ridge_plot
 
 # Save the plot
-ggsave(
-  plot = all_injury_probas_ridge_plot,
-  filename = "figures/supplemental/sfig5_all_injury_probabilities.png",
-  height = img_height,
-  width = img_width,
-  dpi = 700
-)
+for (fig_extension in c(".png", ".jpg")) {
+  figure_name_with_extension <- paste0("figures/supplemental/sfig5_all_injury_probabilities", fig_extension)
+  ggsave(
+    plot = all_injury_probas_ridge_plot,
+    filename = figure_name_with_extension,
+    height = img_height,
+    width = img_width,
+    dpi = 700
+  )
+}
+
 
 # Define plot dimensions
 height = 24.5
@@ -669,11 +700,14 @@ fig2 <- (
 # Display the combined plot
 fig2
 
-# # Save the plot
-ggsave(
-  plot = fig2,
-  filename = "figures/Final_Figure2.png",
-  height = height,
-  width = width,
-  dpi = 700
-)
+# Save the plot
+for (fig_extension in c(".png", ".pdf")) {
+  figure_name_with_extension <- paste0("figures/Final_Figure2", fig_extension)
+  ggsave(
+    plot = fig2,
+    filename = figure_name_with_extension,
+    height = height,
+    width = width,
+    dpi = 700
+  )
+}
